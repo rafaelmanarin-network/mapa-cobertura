@@ -20,16 +20,17 @@
 // Inicializa mapa
 const map = L.map('map').setView([-28.82, -49.27], 13);
 
-// Mapa base
+// Base OpenStreetMap
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 
-// Função de cor baseada no sinal (1,2,3)
+// 🎨 Função de cor
 function getColor(signal) {
-  if (signal == "1") return "red";      // BAIXO
-  if (signal == "2") return "orange";   // MÉDIO
-  if (signal == "3") return "green";    // TOTAL
+  if (signal == "0") return "black";   // sem sinal
+  if (signal == "1") return "red";     // baixo
+  if (signal == "2") return "orange";  // médio
+  if (signal == "3") return "green";   // total
   return "gray";
 }
 
@@ -37,35 +38,36 @@ function getColor(signal) {
 let layerVivo = L.layerGroup().addTo(map);
 let layerTim = L.layerGroup().addTo(map);
 
-// Função para carregar CSV
+// 🔥 Função para ler CSV com aspas
 async function loadCSV(url, layer, rede) {
   try {
     const response = await fetch(url + '?' + Date.now());
-    const data = await response.text();
+    const text = await response.text();
 
-    const lines = data.split(/\r?\n/).slice(1);
+    const lines = text.split(/\r?\n/);
 
-    lines.forEach(line => {
-      if (!line.trim()) return;
+    for (let i = 1; i < lines.length; i++) {
+      let line = lines[i].trim();
+      if (!line) continue;
 
-      const parts = line.split(",");
+      // separa respeitando aspas
+      const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
 
-      // Estrutura real:
-      // parts[0] = LAT
-      // parts[1] = LNG
-      // parts[2] = SINAL
-      // parts[3] = LIGACAO
-      // parts[4] = STREAMING
+      if (!parts || parts.length < 4) continue;
 
-      if (parts.length < 5) return;
+      const localizacao = parts[0].replace(/"/g, '').trim();
+      const sinal = parts[1].trim();
+      const ligacao = parts[2].trim();
+      const streaming = parts[3].trim();
 
-      const lat = parseFloat(parts[0]);
-      const lng = parseFloat(parts[1]);
-      const sinal = parts[2];
-      const ligacao = parts[3];
-      const streaming = parts[4];
+      const coords = localizacao.split(",");
 
-      if (isNaN(lat) || isNaN(lng)) return;
+      if (coords.length < 2) continue;
+
+      const lat = parseFloat(coords[0]);
+      const lng = parseFloat(coords[1]);
+
+      if (isNaN(lat) || isNaN(lng)) continue;
 
       L.circleMarker([lat, lng], {
         radius: 6,
@@ -78,14 +80,14 @@ async function loadCSV(url, layer, rede) {
         Streaming: ${streaming}
       `)
       .addTo(layer);
-    });
+    }
 
-  } catch (error) {
-    console.error("Erro ao carregar CSV:", error);
+  } catch (e) {
+    console.error("Erro ao carregar CSV:", e);
   }
 }
 
-// Atualizar mapa
+// Atualiza mapa
 function atualizarMapa() {
   layerVivo.clearLayers();
   layerTim.clearLayers();
@@ -102,11 +104,12 @@ const overlays = {
 
 L.control.layers(null, overlays).addTo(map);
 
-// Atualiza a cada 30 segundos
+// Atualiza a cada 30s
 setInterval(atualizarMapa, 30000);
 
 // Primeira carga
 atualizarMapa();
+
 </script>
 
 </body>
