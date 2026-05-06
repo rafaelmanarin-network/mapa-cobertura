@@ -5,143 +5,172 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- Cluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+  <!-- Chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     #map { height: 100vh; }
 
-    /* legenda */
     .legend {
       background: white;
       padding: 10px;
       border-radius: 8px;
       box-shadow: 0 0 10px rgba(0,0,0,0.2);
       font-size: 14px;
-      line-height: 18px;
     }
 
-    .legend h4 {
-      margin: 0 0 5px;
+    .legend div {
+      cursor: pointer;
+      margin: 4px 0;
     }
 
     .legend img {
       width: 18px;
-      vertical-align: middle;
       margin-right: 6px;
+    }
+
+    .chart-box {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      width: 250px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
     }
   </style>
 </head>
 <body>
 
 <div id="map"></div>
+<div class="chart-box">
+  <canvas id="chart"></canvas>
+</div>
 
 <script>
-// Inicializa mapa
 const map = L.map('map').setView([-28.82, -49.27], 13);
 
-// Base map
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// 🎨 Ícone por sinal
+// ícones
 function getIcon(signal) {
-  let iconFile = "marker-green.png";
-
-  if (signal == "0") iconFile = "marker-black.png";
-  else if (signal == "1") iconFile = "marker-red.png";
-  else if (signal == "2") iconFile = "marker-orange.png";
-  else if (signal == "3") iconFile = "marker-green.png";
+  const mapIcons = {
+    "0": "marker-black.png",
+    "1": "marker-red.png",
+    "2": "marker-orange.png",
+    "3": "marker-green.png"
+  };
 
   return L.icon({
-    iconUrl: iconFile,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-    popupAnchor: [0, -32]
+    iconUrl: mapIcons[signal] || "marker-green.png",
+    iconSize: [32,32],
+    iconAnchor: [16,32]
   });
 }
 
-// Camadas
-let layerVivo = L.layerGroup().addTo(map);
-let layerTim = L.layerGroup().addTo(map);
+// clusters
+let clusterVivo = L.markerClusterGroup();
+let clusterTim = L.markerClusterGroup();
 
-// 🔥 Ler CSV
-async function loadCSV(url, layer, rede) {
-  try {
-    const response = await fetch(url + '?' + Date.now());
-    const text = await response.text();
+map.addLayer(clusterVivo);
+map.addLayer(clusterTim);
 
-    const lines = text.split(/\r?\n/);
+// filtro
+let filtroAtivo = null;
 
-    for (let i = 1; i < lines.length; i++) {
-      let line = lines[i].trim();
-      if (!line) continue;
+// contagem
+let stats = {0:0,1:0,2:0,3:0};
 
-      const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+// carregar CSV
+async function loadCSV(url, cluster, rede) {
+  const res = await fetch(url + '?' + Date.now());
+  const text = await res.text();
 
-      if (!parts || parts.length < 4) continue;
+  const lines = text.split(/\r?\n/);
 
-      const localizacao = parts[0].replace(/"/g, '').trim();
-      const sinal = parts[1].trim();
-      const ligacao = parts[2].trim();
-      const streaming = parts[3].trim();
+  for (let i = 1; i < lines.length; i++) {
+    let line = lines[i].trim();
+    if (!line) continue;
 
-      const coords = localizacao.split(",");
+    const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+    if (!parts || parts.length < 4) continue;
 
-      if (coords.length < 2) continue;
+    const coords = parts[0].replace(/"/g,'').split(",");
+    const sinal = parts[1].trim();
 
-      const lat = parseFloat(coords[0]);
-      const lng = parseFloat(coords[1]);
+    if (filtroAtivo && sinal != filtroAtivo) continue;
 
-      if (isNaN(lat) || isNaN(lng)) continue;
+    const lat = parseFloat(coords[0]);
+    const lng = parseFloat(coords[1]);
 
-      L.marker([lat, lng], {
-        icon: getIcon(sinal)
-      })
-      .bindPopup(`
-        <b>${rede}</b><br>
-        Sinal: ${sinal}<br>
-        Ligação: ${ligacao}<br>
-        Streaming: ${streaming}
-      `)
-      .addTo(layer);
-    }
+    if (isNaN(lat) || isNaN(lng)) continue;
 
-  } catch (e) {
-    console.error("Erro ao carregar CSV:", e);
+    stats[sinal]++;
+
+    const marker = L.marker([lat,lng], { icon: getIcon(sinal) })
+      .bindPopup(`${rede} - Sinal ${sinal}`);
+
+    cluster.addLayer(marker);
   }
 }
 
-// Atualizar mapa
-function atualizarMapa() {
-  layerVivo.clearLayers();
-  layerTim.clearLayers();
+// atualizar tudo
+function atualizar() {
+  clusterVivo.clearLayers();
+  clusterTim.clearLayers();
 
-  loadCSV('vivo.csv', layerVivo, 'VIVO');
-  loadCSV('tim.csv', layerTim, 'TIM');
+  stats = {0:0,1:0,2:0,3:0};
+
+  loadCSV('vivo.csv', clusterVivo, 'VIVO');
+  loadCSV('tim.csv', clusterTim, 'TIM');
+
+  setTimeout(updateChart, 500);
 }
 
-// Controle de camadas
-const overlays = {
-  "VIVO": layerVivo,
-  "TIM": layerTim
-};
+// gráfico
+let chart = new Chart(document.getElementById('chart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Sem sinal','Baixo','Médio','Total'],
+    datasets: [{
+      data: [0,0,0,0]
+    }]
+  }
+});
 
-L.control.layers(null, overlays).addTo(map);
+function updateChart() {
+  chart.data.datasets[0].data = [
+    stats[0],
+    stats[1],
+    stats[2],
+    stats[3]
+  ];
+  chart.update();
+}
 
-// 🧾 LEGENDA
-const legend = L.control({ position: "bottomright" });
+// legenda clicável
+const legend = L.control({position: 'bottomright'});
 
-legend.onAdd = function () {
-  const div = L.DomUtil.create("div", "legend");
+legend.onAdd = function() {
+  const div = L.DomUtil.create('div','legend');
 
   div.innerHTML = `
-    <h4>Sinal</h4>
-    <div><img src="marker-black.png"> Sem sinal</div>
-    <div><img src="marker-red.png"> Baixo</div>
-    <div><img src="marker-orange.png"> Médio</div>
-    <div><img src="marker-green.png"> Total</div>
+    <b>Filtrar</b>
+    <div onclick="filtrar(null)"><img src="marker-green.png"> Todos</div>
+    <div onclick="filtrar('0')"><img src="marker-black.png"> Sem sinal</div>
+    <div onclick="filtrar('1')"><img src="marker-red.png"> Baixo</div>
+    <div onclick="filtrar('2')"><img src="marker-orange.png"> Médio</div>
+    <div onclick="filtrar('3')"><img src="marker-green.png"> Total</div>
   `;
 
   return div;
@@ -149,11 +178,17 @@ legend.onAdd = function () {
 
 legend.addTo(map);
 
-// Atualiza a cada 30s
-setInterval(atualizarMapa, 30000);
+// função filtro
+window.filtrar = function(valor) {
+  filtroAtivo = valor;
+  atualizar();
+};
 
-// Primeira carga
-atualizarMapa();
+// atualiza a cada 30s
+setInterval(atualizar, 30000);
+
+// inicial
+atualizar();
 
 </script>
 
