@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mapa de Sinal</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    #map { height: 100vh; }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script>
+// Inicializa mapa
+const map = L.map('map').setView([-28.82, -49.27], 13);
+
+// Mapa base
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap'
+}).addTo(map);
+
+// Função de cor baseada no sinal (1,2,3)
+function getColor(signal) {
+  if (signal == "1") return "red";      // BAIXO
+  if (signal == "2") return "orange";   // MÉDIO
+  if (signal == "3") return "green";    // TOTAL
+  return "gray";
+}
+
+// Camadas
+let layerVivo = L.layerGroup().addTo(map);
+let layerTim = L.layerGroup().addTo(map);
+
+// Função para carregar CSV
+async function loadCSV(url, layer, rede) {
+  try {
+    const response = await fetch(url + '?' + Date.now());
+    const data = await response.text();
+
+    const lines = data.split(/\r?\n/).slice(1);
+
+    lines.forEach(line => {
+      if (!line.trim()) return;
+
+      const parts = line.split(",");
+
+      // Estrutura real:
+      // parts[0] = LAT
+      // parts[1] = LNG
+      // parts[2] = SINAL
+      // parts[3] = LIGACAO
+      // parts[4] = STREAMING
+
+      if (parts.length < 5) return;
+
+      const lat = parseFloat(parts[0]);
+      const lng = parseFloat(parts[1]);
+      const sinal = parts[2];
+      const ligacao = parts[3];
+      const streaming = parts[4];
+
+      if (isNaN(lat) || isNaN(lng)) return;
+
+      L.circleMarker([lat, lng], {
+        radius: 6,
+        color: getColor(sinal)
+      })
+      .bindPopup(`
+        <b>${rede}</b><br>
+        Sinal: ${sinal}<br>
+        Ligação: ${ligacao}<br>
+        Streaming: ${streaming}
+      `)
+      .addTo(layer);
+    });
+
+  } catch (error) {
+    console.error("Erro ao carregar CSV:", error);
+  }
+}
+
+// Atualizar mapa
+function atualizarMapa() {
+  layerVivo.clearLayers();
+  layerTim.clearLayers();
+
+  loadCSV('vivo.csv', layerVivo, 'VIVO');
+  loadCSV('tim.csv', layerTim, 'TIM');
+}
+
+// Controle de camadas
+const overlays = {
+  "VIVO": layerVivo,
+  "TIM": layerTim
+};
+
+L.control.layers(null, overlays).addTo(map);
+
+// Atualiza a cada 30 segundos
+setInterval(atualizarMapa, 30000);
+
+// Primeira carga
+atualizarMapa();
+</script>
+
+</body>
+</html>
