@@ -10,6 +10,26 @@
 
   <style>
     #map { height: 100vh; }
+
+    /* legenda */
+    .legend {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      font-size: 14px;
+      line-height: 18px;
+    }
+
+    .legend h4 {
+      margin: 0 0 5px;
+    }
+
+    .legend img {
+      width: 18px;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
   </style>
 </head>
 <body>
@@ -25,7 +45,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap'
 }).addTo(map);
 
-// 🎨 Escolher ícone por sinal
+// 🎨 Ícone por sinal
 function getIcon(signal) {
   let iconFile = "marker-green.png";
 
@@ -46,7 +66,7 @@ function getIcon(signal) {
 let layerVivo = L.layerGroup().addTo(map);
 let layerTim = L.layerGroup().addTo(map);
 
-// Função carregar CSV (com aspas)
+// 🔥 Ler CSV
 async function loadCSV(url, layer, rede) {
   try {
     const response = await fetch(url + '?' + Date.now());
@@ -109,6 +129,25 @@ const overlays = {
 };
 
 L.control.layers(null, overlays).addTo(map);
+
+// 🧾 LEGENDA
+const legend = L.control({ position: "bottomright" });
+
+legend.onAdd = function () {
+  const div = L.DomUtil.create("div", "legend");
+
+  div.innerHTML = `
+    <h4>Sinal</h4>
+    <div><img src="marker-black.png"> Sem sinal</div>
+    <div><img src="marker-red.png"> Baixo</div>
+    <div><img src="marker-orange.png"> Médio</div>
+    <div><img src="marker-green.png"> Total</div>
+  `;
+
+  return div;
+};
+
+legend.addTo(map);
 
 // Atualiza a cada 30s
 setInterval(atualizarMapa, 30000);
