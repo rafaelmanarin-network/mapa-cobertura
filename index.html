@@ -68,7 +68,7 @@ function getIcon(signal) {
     "1":     "marker-red.png",
     "2":     "marker-orange.png",
     "3":     "marker-green.png",
-    "TORRE": "tower.png"          // ← NOVO
+    "TORRE": "tower.png"
   };
 
   return L.icon({
@@ -79,8 +79,11 @@ function getIcon(signal) {
 }
 
 // CLUSTERS
-let clusterVivo = L.layerGroup().addTo(map);
-let clusterTim  = L.layerGroup().addTo(map);
+let clusterVivoTorres = L.markerClusterGroup();
+let clusterVivo = L.layerGroup([clusterVivoTorres]).addTo(map);
+
+let clusterTimTorres = L.markerClusterGroup();
+let clusterTim = L.layerGroup([clusterTimTorres]).addTo(map);
 
 // CAMADAS
 const overlays = {
@@ -92,10 +95,10 @@ L.control.layers(null, overlays).addTo(map);
 
 // FILTRO SINAL
 let filtroAtivo = null;
-let stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };  // ← NOVO
+let stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };
 
 // CSV LOADER
-async function loadCSV(url, cluster, rede) {
+async function loadCSV(url, layerGroup, clusterTorres, rede) {
 
   const res  = await fetch(url + '?' + Date.now());
   const text = await res.text();
@@ -110,7 +113,7 @@ async function loadCSV(url, cluster, rede) {
     if (!parts || parts.length < 4) continue;
 
     const coords = parts[0].replace(/"/g, '').split(",");
-    const sinal  = parts[1].trim();   // pode ser "0","1","2","3" ou "TORRE"
+    const sinal  = parts[1].trim();
 
     if (filtroAtivo && sinal !== filtroAtivo) continue;
 
@@ -119,14 +122,17 @@ async function loadCSV(url, cluster, rede) {
 
     if (isNaN(lat) || isNaN(lng)) continue;
 
-    // contabiliza apenas chaves conhecidas
     if (stats.hasOwnProperty(sinal)) stats[sinal]++;
 
     const marker = L.marker([lat, lng], {
       icon: getIcon(sinal)
     }).bindPopup(`${rede} - ${sinal === "TORRE" ? "Torre" : "Sinal " + sinal}`);
 
-    cluster.addLayer(marker);
+    if (sinal === "TORRE") {
+      clusterTorres.addLayer(marker);
+    } else {
+      layerGroup.addLayer(marker);
+    }
   }
 }
 
@@ -136,10 +142,16 @@ function atualizar() {
   clusterVivo.clearLayers();
   clusterTim.clearLayers();
 
-  stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };  // ← NOVO
+  clusterVivoTorres = L.markerClusterGroup();
+  clusterTimTorres  = L.markerClusterGroup();
 
-  loadCSV('vivo.csv', clusterVivo, 'VIVO');
-  loadCSV('tim.csv',  clusterTim,  'TIM');
+  clusterVivo.addLayer(clusterVivoTorres);
+  clusterTim.addLayer(clusterTimTorres);
+
+  stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };
+
+  loadCSV('vivo.csv', clusterVivo, clusterVivoTorres, 'VIVO');
+  loadCSV('tim.csv',  clusterTim,  clusterTimTorres,  'TIM');
 
   setTimeout(updateChart, 500);
 }
@@ -148,10 +160,10 @@ function atualizar() {
 let chart = new Chart(document.getElementById('chart'), {
   type: 'doughnut',
   data: {
-    labels: ['Sem sinal', 'Baixo', 'Médio', 'Total', 'Torre'],   // ← NOVO
+    labels: ['Sem sinal', 'Baixo', 'Médio', 'Total', 'Torre'],
     datasets: [{
       data: [0, 0, 0, 0, 0],
-      backgroundColor: ['#222', '#e74c3c', '#e67e22', '#2ecc71', '#3498db']  // ← NOVO
+      backgroundColor: ['#222', '#e74c3c', '#e67e22', '#2ecc71', '#3498db']
     }]
   }
 });
@@ -162,7 +174,7 @@ function updateChart() {
     stats["1"],
     stats["2"],
     stats["3"],
-    stats["TORRE"]   // ← NOVO
+    stats["TORRE"]
   ];
   chart.update();
 }
@@ -175,12 +187,12 @@ legend.onAdd = function() {
 
   div.innerHTML = `
     <b>Sinal</b><br>
-    <div onclick="filtrar(null)">           <img src="marker-green.png"> Todos</div>
-    <div onclick="filtrar('0')">            <img src="marker-black.png"> Sem sinal</div>
-    <div onclick="filtrar('1')">            <img src="marker-red.png">   Baixo</div>
-    <div onclick="filtrar('2')">            <img src="marker-orange.png"> Médio</div>
-    <div onclick="filtrar('3')">            <img src="marker-green.png"> Total</div>
-    <div onclick="filtrar('TORRE')">        <img src="tower.png">        Torre</div>
+    <div onclick="filtrar(null)">        <img src="marker-green.png"> Todos</div>
+    <div onclick="filtrar('0')">         <img src="marker-black.png"> Sem sinal</div>
+    <div onclick="filtrar('1')">         <img src="marker-red.png">   Baixo</div>
+    <div onclick="filtrar('2')">         <img src="marker-orange.png"> Médio</div>
+    <div onclick="filtrar('3')">         <img src="marker-green.png"> Total</div>
+    <div onclick="filtrar('TORRE')">     <img src="tower.png">        Torre</div>
   `;
 
   return div;
