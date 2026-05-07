@@ -105,17 +105,17 @@ const vivoSinal   = L.layerGroup().addTo(map);
 const vivoTorres  = criarClusterTorres().addTo(map);
 const timSinal    = L.layerGroup().addTo(map);
 const timTorres   = criarClusterTorres().addTo(map);
-const alcanceVivo = L.layerGroup().addTo(map);  // círculos VIVO
-const alcanceTim  = L.layerGroup().addTo(map);  // círculos TIM
+const alcanceVivo = L.layerGroup().addTo(map);
+const alcanceTim  = L.layerGroup().addTo(map);
 
 // CONTROLE DE CAMADAS
 L.control.layers(null, {
-  "VIVO Sinal":         vivoSinal,
-  "VIVO Torre":         vivoTorres,
-  "VIVO Área Alcance":  alcanceVivo,
-  "TIM Sinal":          timSinal,
-  "TIM Torre":          timTorres,
-  "TIM Área Alcance":   alcanceTim
+  "VIVO Sinal":        vivoSinal,
+  "VIVO Torre":        vivoTorres,
+  "VIVO Área Alcance": alcanceVivo,
+  "TIM Sinal":         timSinal,
+  "TIM Torre":         timTorres,
+  "TIM Área Alcance":  alcanceTim
 }).addTo(map);
 
 // FILTRO SINAL
@@ -148,13 +148,12 @@ async function loadCSV(url, layerSinal, layerTorres, layerAlcance, rede) {
     }).bindPopup(`${rede} - ${sinal === "TORRE" ? "Torre" : "Sinal " + sinal}`);
 
     if (sinal === "TORRE") {
-      layerTorres.addLayer(marker);
+      if (map.hasLayer(layerTorres)) layerTorres.addLayer(marker);
     } else {
-      layerSinal.addLayer(marker);
+      if (map.hasLayer(layerSinal)) layerSinal.addLayer(marker);
 
-      // Círculo vai para o layer de alcance separado
       const cfg = sinalConfig[sinal];
-      if (cfg && cfg.radius > 0) {
+      if (cfg && cfg.radius > 0 && map.hasLayer(layerAlcance)) {
         const circle = L.circle([lat, lng], {
           radius:      cfg.radius,
           color:       cfg.color,
@@ -195,7 +194,7 @@ legend.onAdd = function() {
     <div onclick="filtrar('0')">      <img src="marker-black.png">  Sem sinal</div>
     <div onclick="filtrar('1')">      <img src="marker-red.png">    Baixo</div>
     <div onclick="filtrar('2')">      <img src="marker-orange.png"> Médio</div>
-    <div onclick="filtrar('3')">      <img src="marker-green.png">  Total</div>
+    <div onclick="filtrar('3')">      <img src="marker-green.png">  Forte</div>
     <div onclick="filtrar('TORRE')">  <img src="tower.png">         Torre</div>
   `;
   return div;
