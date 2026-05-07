@@ -148,7 +148,7 @@ function atualizar() {
 let chart = new Chart(document.getElementById('chart'), {
   type: 'doughnut',
   data: {
-    labels: ['Sem sinal', 'Baixo', 'Médio', 'Total', 'Torre'],   // ← NOVO
+    labels: ['Sem sinal', 'Baixo', 'Médio', 'Forte', 'Torre'],   // ← NOVO
     datasets: [{
       data: [0, 0, 0, 0, 0],
       backgroundColor: ['#222', '#e74c3c', '#e67e22', '#2ecc71', '#3498db']  // ← NOVO
@@ -175,12 +175,12 @@ legend.onAdd = function() {
 
   div.innerHTML = `
     <b>Sinal</b><br>
+    <div onclick="filtrar('TORRE')">        <img src="tower.png">        Torre</div>
     <div onclick="filtrar(null)">           <img src="marker-green.png"> Todos</div>
     <div onclick="filtrar('0')">            <img src="marker-black.png"> Sem sinal</div>
     <div onclick="filtrar('1')">            <img src="marker-red.png">   Baixo</div>
     <div onclick="filtrar('2')">            <img src="marker-orange.png"> Médio</div>
-    <div onclick="filtrar('3')">            <img src="marker-green.png"> Total</div>
-    <div onclick="filtrar('TORRE')">        <img src="tower.png">        Torre</div>
+    <div onclick="filtrar('3')">            <img src="marker-green.png"> Forte</div>
   `;
 
   return div;
