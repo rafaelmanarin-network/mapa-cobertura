@@ -44,6 +44,14 @@ const map = L.map('map').setView([-28.82, -49.27], 13);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+// RAIO E COR POR SINAL
+const sinalConfig = {
+  "0": { radius: 0,   color: '#000000' },
+  "1": { radius: 150, color: '#e74c3c' },
+  "2": { radius: 300, color: '#e67e22' },
+  "3": { radius: 400, color: '#2ecc71' }
+};
+
 // ÍCONES
 function getIcon(signal) {
   const mapIcons = {
@@ -93,24 +101,28 @@ function criarClusterTorres() {
 }
 
 // LAYERS — criados uma única vez
-const vivoSinal  = L.layerGroup().addTo(map);
-const vivoTorres = criarClusterTorres().addTo(map);
-const timSinal   = L.layerGroup().addTo(map);
-const timTorres  = criarClusterTorres().addTo(map);
+const vivoSinal   = L.layerGroup().addTo(map);
+const vivoTorres  = criarClusterTorres().addTo(map);
+const timSinal    = L.layerGroup().addTo(map);
+const timTorres   = criarClusterTorres().addTo(map);
+const alcanceVivo = L.layerGroup().addTo(map);  // círculos VIVO
+const alcanceTim  = L.layerGroup().addTo(map);  // círculos TIM
 
 // CONTROLE DE CAMADAS
 L.control.layers(null, {
-  "VIVO Sinal": vivoSinal,
-  "VIVO Torre": vivoTorres,
-  "TIM Sinal":  timSinal,
-  "TIM Torre":  timTorres
+  "VIVO Sinal":         vivoSinal,
+  "VIVO Torre":         vivoTorres,
+  "VIVO Área Alcance":  alcanceVivo,
+  "TIM Sinal":          timSinal,
+  "TIM Torre":          timTorres,
+  "TIM Área Alcance":   alcanceTim
 }).addTo(map);
 
 // FILTRO SINAL
 let filtroAtivo = null;
 
 // CSV LOADER
-async function loadCSV(url, layerSinal, layerTorres, rede) {
+async function loadCSV(url, layerSinal, layerTorres, layerAlcance, rede) {
   const res   = await fetch(url + '?' + Date.now());
   const text  = await res.text();
   const lines = text.split(/\r?\n/);
@@ -139,6 +151,20 @@ async function loadCSV(url, layerSinal, layerTorres, rede) {
       layerTorres.addLayer(marker);
     } else {
       layerSinal.addLayer(marker);
+
+      // Círculo vai para o layer de alcance separado
+      const cfg = sinalConfig[sinal];
+      if (cfg && cfg.radius > 0) {
+        const circle = L.circle([lat, lng], {
+          radius:      cfg.radius,
+          color:       cfg.color,
+          fillColor:   cfg.color,
+          fillOpacity: 0.10,
+          opacity:     0.4,
+          weight:      1.5
+        });
+        layerAlcance.addLayer(circle);
+      }
     }
   }
 }
@@ -147,14 +173,16 @@ async function loadCSV(url, layerSinal, layerTorres, rede) {
 function atualizar() {
   vivoSinal.clearLayers();
   timSinal.clearLayers();
+  alcanceVivo.clearLayers();
+  alcanceTim.clearLayers();
 
   if (filtroAtivo === null || filtroAtivo === 'TORRE') {
     vivoTorres.clearLayers();
     timTorres.clearLayers();
   }
 
-  loadCSV('vivo.csv', vivoSinal, vivoTorres, 'VIVO');
-  loadCSV('tim.csv',  timSinal,  timTorres,  'TIM');
+  loadCSV('vivo.csv', vivoSinal, vivoTorres, alcanceVivo, 'VIVO');
+  loadCSV('tim.csv',  timSinal,  timTorres,  alcanceTim,  'TIM');
 }
 
 // LEGENDA
