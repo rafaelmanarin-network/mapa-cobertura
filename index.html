@@ -14,9 +14,6 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <style>
     body { margin: 0; padding: 0; font-family: sans-serif; }
     #map { height: 100vh; width: 100%; }
@@ -43,18 +40,6 @@
       margin-right: 8px;
     }
 
-    .chart-box {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      width: 220px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
-      z-index: 1000;
-    }
-
     /* Estilo para o contador sobre o ícone da torre */
     .cluster-count-badge {
       position: absolute;
@@ -74,10 +59,6 @@
 <body>
 
 <div id="map"></div>
-
-<div class="chart-box">
-  <canvas id="chart"></canvas>
-</div>
 
 <script>
 // Inicialização do Mapa
@@ -144,7 +125,6 @@ const overlays = {
 L.control.layers(null, overlays).addTo(map);
 
 let filtroAtivo = null;
-let stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };
 
 // CSV Loader
 async function loadCSV(url, clusterTorre, layerSinal, rede) {
@@ -169,7 +149,6 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
       const lng = parseFloat(coordsStr[1]);
 
       if (isNaN(lat) || isNaN(lng)) continue;
-      if (stats.hasOwnProperty(sinal)) stats[sinal]++;
 
       const marker = L.marker([lat, lng], {
         icon: getIcon(sinal)
@@ -190,30 +169,8 @@ function atualizar() {
   clusterTimTorre.clearLayers();
   layerTimSinal.clearLayers();
 
-  stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };
-
   loadCSV('vivo.csv', clusterVivoTorre, layerVivoSinal, 'VIVO');
   loadCSV('tim.csv',  clusterTimTorre,  layerTimSinal,  'TIM');
-
-  setTimeout(updateChart, 800);
-}
-
-// Chart.js
-let chart = new Chart(document.getElementById('chart'), {
-  type: 'doughnut',
-  data: {
-    labels: ['Sem sinal', 'Baixo', 'Médio', 'Forte', 'Torre'],
-    datasets: [{
-      data: [0, 0, 0, 0, 0],
-      backgroundColor: ['#222', '#e74c3c', '#e67e22', '#2ecc71', '#3498db']
-    }]
-  },
-  options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
-});
-
-function updateChart() {
-  chart.data.datasets[0].data = [stats["0"], stats["1"], stats["2"], stats["3"], stats["TORRE"]];
-  chart.update();
 }
 
 // Legenda
