@@ -40,7 +40,6 @@
       margin-right: 8px;
     }
 
-    /* Estilo para o contador sobre o ícone da torre */
     .cluster-count-badge {
       position: absolute;
       top: -5px;
@@ -61,11 +60,9 @@
 <div id="map"></div>
 
 <script>
-// Inicialização do Mapa
 const map = L.map('map').setView([-28.82, -49.27], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// Função para ícones individuais
 function getIcon(signal) {
   const mapIcons = {
     "0":     "marker-black.png",
@@ -83,7 +80,6 @@ function getIcon(signal) {
   });
 }
 
-// Função para criar o ícone do Cluster (Torre com número)
 const customClusterIcon = function (cluster) {
   const count = cluster.getChildCount();
   return L.divIcon({
@@ -98,24 +94,12 @@ const customClusterIcon = function (cluster) {
   });
 };
 
-// Grupos de Sinais (Sempre visíveis)
+// Definição das camadas
 let layerVivoSinal = L.layerGroup().addTo(map);
 let layerTimSinal  = L.layerGroup().addTo(map);
+let clusterVivoTorre = L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false, iconCreateFunction: customClusterIcon }).addTo(map);
+let clusterTimTorre  = L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false, iconCreateFunction: customClusterIcon }).addTo(map);
 
-// Grupos de Torres (Clusterizados com ícone customizado)
-let clusterVivoTorre = L.markerClusterGroup({ 
-    maxClusterRadius: 50,
-    showCoverageOnHover: false,
-    iconCreateFunction: customClusterIcon 
-}).addTo(map);
-
-let clusterTimTorre  = L.markerClusterGroup({ 
-    maxClusterRadius: 50,
-    showCoverageOnHover: false,
-    iconCreateFunction: customClusterIcon 
-}).addTo(map);
-
-// Camadas
 const overlays = {
   "VIVO (Sinais)": layerVivoSinal,
   "VIVO (Torres)": clusterVivoTorre,
@@ -126,12 +110,15 @@ L.control.layers(null, overlays).addTo(map);
 
 let filtroAtivo = null;
 
-// CSV Loader
 async function loadCSV(url, clusterTorre, layerSinal, rede) {
   try {
     const res = await fetch(url + '?' + Date.now());
     const text = await res.text();
     const lines = text.split(/\r?\n/);
+
+    // Limpa apenas os dados específicos desta operadora/arquivo
+    clusterTorre.clearLayers();
+    layerSinal.clearLayers();
 
     for (let i = 1; i < lines.length; i++) {
       let line = lines[i].trim();
@@ -143,11 +130,11 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
       const coordsStr = parts[0].replace(/"/g, '').split(",");
       const sinal = parts[1].trim();
 
+      // Aplica o filtro de legenda (Sinal)
       if (filtroAtivo && sinal !== filtroAtivo) continue;
 
       const lat = parseFloat(coordsStr[0]);
       const lng = parseFloat(coordsStr[1]);
-
       if (isNaN(lat) || isNaN(lng)) continue;
 
       const marker = L.marker([lat, lng], {
@@ -163,22 +150,17 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
   } catch (e) { console.error("Erro no CSV:", e); }
 }
 
+// Atualiza cada operadora independentemente
 function atualizar() {
-  clusterVivoTorre.clearLayers();
-  layerVivoSinal.clearLayers();
-  clusterTimTorre.clearLayers();
-  layerTimSinal.clearLayers();
-
   loadCSV('vivo.csv', clusterVivoTorre, layerVivoSinal, 'VIVO');
   loadCSV('tim.csv',  clusterTimTorre,  layerTimSinal,  'TIM');
 }
 
-// Legenda
 const legend = L.control({ position: 'bottomright' });
 legend.onAdd = function() {
   const div = L.DomUtil.create('div', 'legend');
   div.innerHTML = `
-    <b>Filtros</b><br>
+    <b>Filtros de Sinal</b><br>
     <div onclick="filtrar(null)">    <img src="marker-green.png"> Todos</div>
     <div onclick="filtrar('TORRE')"> <img src="tower.png"> Torres</div>
     <div onclick="filtrar('0')">     <img src="marker-black.png"> Sem sinal</div>
@@ -190,7 +172,10 @@ legend.onAdd = function() {
 };
 legend.addTo(map);
 
-window.filtrar = function(v) { filtroAtivo = v; atualizar(); };
+window.filtrar = function(v) { 
+  filtroAtivo = v; 
+  atualizar(); 
+};
 
 setInterval(atualizar, 30000);
 atualizar();
