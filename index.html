@@ -79,8 +79,8 @@ function getIcon(signal) {
 }
 
 // CLUSTERS
-let clusterVivo = L.layerGroup();
-let clusterTim  = L.layerGroup();
+let clusterVivo = L.layerGroup().addTo(map);
+let clusterTim  = L.layerGroup().addTo(map);
 
 // CAMADAS
 const overlays = {
