@@ -94,13 +94,15 @@ const customClusterIcon = function (cluster) {
   });
 };
 
-// Definição das camadas
+// Camadas da VIVO
 let layerVivoSinal = L.layerGroup().addTo(map);
-let layerTimSinal  = L.layerGroup().addTo(map);
 let clusterVivoTorre = L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false, iconCreateFunction: customClusterIcon }).addTo(map);
+
+// Camadas da TIM
+let layerTimSinal  = L.layerGroup().addTo(map);
 let clusterTimTorre  = L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false, iconCreateFunction: customClusterIcon }).addTo(map);
 
-// MENU LATERAL: Removido as opções de Torre conforme solicitado
+// Controle de camadas (Apenas os sinais para o usuário alternar)
 const overlays = {
   "VIVO (Sinais)": layerVivoSinal,
   "TIM (Sinais)": layerTimSinal
@@ -109,14 +111,18 @@ L.control.layers(null, overlays).addTo(map);
 
 let filtroAtivo = null;
 
-async function loadCSV(url, clusterTorre, layerSinal, rede) {
+async function processarOperadora(url, clusterTorre, layerSinal, rede) {
   try {
     const res = await fetch(url + '?' + Date.now());
+    if (!res.ok) return;
+    
     const text = await res.text();
     const lines = text.split(/\r?\n/);
 
-    clusterTorre.clearLayers();
-    layerSinal.clearLayers();
+    // Criamos um array temporário para carregar tudo antes de limpar o mapa
+    // Isso evita que o mapa fique "piscando" ou vazio se o fetch demorar
+    let novosMarcadoresSinal = [];
+    let novosMarcadoresTorre = [];
 
     for (let i = 1; i < lines.length; i++) {
       let line = lines[i].trim();
@@ -139,17 +145,25 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
       }).bindPopup(`<b>${rede}</b><br>${sinal === "TORRE" ? "Torre" : "Sinal: " + sinal}`);
 
       if (sinal === "TORRE") {
-        clusterTorre.addLayer(marker);
+        novosMarcadoresTorre.push(marker);
       } else {
-        layerSinal.addLayer(marker);
+        novosMarcadoresSinal.push(marker);
       }
     }
-  } catch (e) { console.error("Erro no CSV:", e); }
+
+    // Agora sim, limpamos e adicionamos apenas os dados desta operadora
+    clusterTorre.clearLayers();
+    layerSinal.clearLayers();
+    
+    clusterTorre.addLayers(novosMarcadoresTorre);
+    novosMarcadoresSinal.forEach(m => layerSinal.addLayer(m));
+
+  } catch (e) { console.error(`Erro ao carregar ${rede}:`, e); }
 }
 
 function atualizar() {
-  loadCSV('vivo.csv', clusterVivoTorre, layerVivoSinal, 'VIVO');
-  loadCSV('tim.csv',  clusterTimTorre,  layerTimSinal,  'TIM');
+  processarOperadora('vivo.csv', clusterVivoTorre, layerVivoSinal, 'VIVO');
+  processarOperadora('tim.csv',  clusterTimTorre,  layerTimSinal,  'TIM');
 }
 
 const legend = L.control({ position: 'bottomright' });
