@@ -12,8 +12,6 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <style>
     #map { height: 100vh; }
 
@@ -34,26 +32,11 @@
       width: 18px;
       margin-right: 6px;
     }
-
-    .chart-box {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: white;
-      padding: 10px;
-      border-radius: 8px;
-      width: 250px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
-    }
   </style>
 </head>
 <body>
 
 <div id="map"></div>
-
-<div class="chart-box">
-  <canvas id="chart"></canvas>
-</div>
 
 <script>
 
@@ -68,7 +51,7 @@ function getIcon(signal) {
     "1":     "marker-red.png",
     "2":     "marker-orange.png",
     "3":     "marker-green.png",
-    "TORRE": "tower.png"          // ← NOVO
+    "TORRE": "tower.png"
   };
 
   return L.icon({
@@ -92,7 +75,6 @@ L.control.layers(null, overlays).addTo(map);
 
 // FILTRO SINAL
 let filtroAtivo = null;
-let stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };  // ← NOVO
 
 // CSV LOADER
 async function loadCSV(url, cluster, rede) {
@@ -110,7 +92,7 @@ async function loadCSV(url, cluster, rede) {
     if (!parts || parts.length < 4) continue;
 
     const coords = parts[0].replace(/"/g, '').split(",");
-    const sinal  = parts[1].trim();   // pode ser "0","1","2","3" ou "TORRE"
+    const sinal  = parts[1].trim();
 
     if (filtroAtivo && sinal !== filtroAtivo) continue;
 
@@ -118,9 +100,6 @@ async function loadCSV(url, cluster, rede) {
     const lng = parseFloat(coords[1]);
 
     if (isNaN(lat) || isNaN(lng)) continue;
-
-    // contabiliza apenas chaves conhecidas
-    if (stats.hasOwnProperty(sinal)) stats[sinal]++;
 
     const marker = L.marker([lat, lng], {
       icon: getIcon(sinal)
@@ -132,39 +111,11 @@ async function loadCSV(url, cluster, rede) {
 
 // ATUALIZAR
 function atualizar() {
-
   clusterVivo.clearLayers();
   clusterTim.clearLayers();
 
-  stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };  // ← NOVO
-
   loadCSV('vivo.csv', clusterVivo, 'VIVO');
   loadCSV('tim.csv',  clusterTim,  'TIM');
-
-  setTimeout(updateChart, 500);
-}
-
-// CHART
-let chart = new Chart(document.getElementById('chart'), {
-  type: 'doughnut',
-  data: {
-    labels: ['Sem sinal', 'Baixo', 'Médio', 'Forte', 'Torre'],   // ← NOVO
-    datasets: [{
-      data: [0, 0, 0, 0, 0],
-      backgroundColor: ['#222', '#e74c3c', '#e67e22', '#2ecc71', '#3498db']  // ← NOVO
-    }]
-  }
-});
-
-function updateChart() {
-  chart.data.datasets[0].data = [
-    stats["0"],
-    stats["1"],
-    stats["2"],
-    stats["3"],
-    stats["TORRE"]   // ← NOVO
-  ];
-  chart.update();
 }
 
 // LEGENDA (SINAL)
@@ -194,7 +145,7 @@ window.filtrar = function(v) {
   atualizar();
 };
 
-// LOOP
+// LOOP DE ATUALIZAÇÃO (30s)
 setInterval(atualizar, 30000);
 
 atualizar();
