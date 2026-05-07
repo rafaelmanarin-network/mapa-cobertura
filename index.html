@@ -67,4 +67,145 @@ function criarClusterTorres() {
     iconCreateFunction: function(cluster) {
       const count = cluster.getChildCount();
       return L.divIcon({
-        html: `<div
+        html: `<div style="position:relative; display:inline-block;">
+                 <img src="tower.png" style="width:32px; height:32px; display:block;">
+                 <span style="
+                   position: absolute;
+                   top: -6px;
+                   right: -8px;
+                   background: #1a3a5c;
+                   color: white;
+                   border-radius: 50%;
+                   padding: 1px 5px;
+                   font-size: 11px;
+                   font-weight: bold;
+                   line-height: 16px;
+                   min-width: 16px;
+                   text-align: center;
+                   box-shadow: 0 0 3px rgba(0,0,0,0.4);
+                 ">${count}</span>
+               </div>`,
+        className: '',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      });
+    }
+  });
+}
+
+// LAYERS
+let vivoSinal  = L.layerGroup().addTo(map);
+let vivoTorres = criarClusterTorres(); vivoTorres.addTo(map);
+let timSinal   = L.layerGroup().addTo(map);
+let timTorres  = criarClusterTorres(); timTorres.addTo(map);
+
+// CAMADAS
+const overlays = {
+  "VIVO Sinal":  vivoSinal,
+  "VIVO Torre":  vivoTorres,
+  "TIM Sinal":   timSinal,
+  "TIM Torre":   timTorres
+};
+
+L.control.layers(null, overlays).addTo(map);
+
+// FILTRO SINAL
+let filtroAtivo = null;
+
+// CSV LOADER
+async function loadCSV(url, layerSinal, layerTorres, rede) {
+
+  const res  = await fetch(url + '?' + Date.now());
+  const text = await res.text();
+  const lines = text.split(/\r?\n/);
+
+  for (let i = 1; i < lines.length; i++) {
+
+    let line = lines[i].trim();
+    if (!line) continue;
+
+    const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+    if (!parts || parts.length < 4) continue;
+
+    const coords = parts[0].replace(/"/g, '').split(",");
+    const sinal  = parts[1].trim();
+
+    if (filtroAtivo && sinal !== filtroAtivo) continue;
+
+    const lat = parseFloat(coords[0]);
+    const lng = parseFloat(coords[1]);
+
+    if (isNaN(lat) || isNaN(lng)) continue;
+
+    const marker = L.marker([lat, lng], {
+      icon: getIcon(sinal)
+    }).bindPopup(`${rede} - ${sinal === "TORRE" ? "Torre" : "Sinal " + sinal}`);
+
+    if (sinal === "TORRE") {
+      layerTorres.addLayer(marker);
+    } else {
+      layerSinal.addLayer(marker);
+    }
+  }
+}
+
+// ATUALIZAR
+function atualizar() {
+
+  vivoSinal.clearLayers();
+  timSinal.clearLayers();
+
+  // Recriar clusters de torres
+  map.removeLayer(vivoTorres);
+  map.removeLayer(timTorres);
+
+  vivoTorres = criarClusterTorres();
+  timTorres  = criarClusterTorres();
+
+  // Só adiciona ao mapa se o overlay ainda estiver ativo
+  overlays["VIVO Torre"] = vivoTorres;
+  overlays["TIM Torre"]  = timTorres;
+
+  vivoTorres.addTo(map);
+  timTorres.addTo(map);
+
+  loadCSV('vivo.csv', vivoSinal, vivoTorres, 'VIVO');
+  loadCSV('tim.csv',  timSinal,  timTorres,  'TIM');
+}
+
+// LEGENDA (SINAL)
+const legend = L.control({ position: 'bottomright' });
+
+legend.onAdd = function() {
+  const div = L.DomUtil.create('div', 'legend');
+
+  div.innerHTML = `
+    <b>Sinal</b><br>
+    <div onclick="filtrar(null)">        <img src="marker-green.png"> Todos</div>
+    <div onclick="filtrar('0')">         <img src="marker-black.png"> Sem sinal</div>
+    <div onclick="filtrar('1')">         <img src="marker-red.png">   Baixo</div>
+    <div onclick="filtrar('2')">         <img src="marker-orange.png"> Médio</div>
+    <div onclick="filtrar('3')">         <img src="marker-green.png"> Total</div>
+    <div onclick="filtrar('TORRE')">     <img src="tower.png">        Torre</div>
+  `;
+
+  return div;
+};
+
+legend.addTo(map);
+
+// FILTRO
+window.filtrar = function(v) {
+  filtroAtivo = v;
+  atualizar();
+};
+
+// LOOP
+setInterval(atualizar, 30000);
+
+atualizar();
+
+</script>
+
+</body>
+</html>
