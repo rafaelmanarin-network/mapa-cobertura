@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <title>Mapa de Sinal - Torres Clusterizadas</title>
+  <title>Mapa de Sinal - Clusterização de Torres</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -14,8 +14,11 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
 
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; }
+    body { margin: 0; padding: 0; }
     #map { height: 100vh; width: 100%; }
 
     .legend {
@@ -25,6 +28,7 @@
       box-shadow: 0 0 10px rgba(0,0,0,0.2);
       font-size: 14px;
       line-height: 18px;
+      color: #333;
     }
 
     .legend div {
@@ -40,19 +44,16 @@
       margin-right: 8px;
     }
 
-    /* Estilo para o contador sobre o ícone da torre */
-    .cluster-count-badge {
+    .chart-box {
       position: absolute;
-      top: -5px;
-      right: -5px;
-      background: #3498db;
-      color: white;
-      border-radius: 50%;
-      padding: 2px 6px;
-      font-size: 11px;
-      font-weight: bold;
-      border: 2px solid white;
-      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      width: 220px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      z-index: 1000;
     }
   </style>
 </head>
@@ -60,12 +61,16 @@
 
 <div id="map"></div>
 
+<div class="chart-box">
+  <canvas id="chart"></canvas>
+</div>
+
 <script>
 // Inicialização do Mapa
 const map = L.map('map').setView([-28.82, -49.27], 13);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// Função para ícones individuais
+// Ícones personalizados
 function getIcon(signal) {
   const mapIcons = {
     "0":     "marker-black.png",
@@ -83,39 +88,22 @@ function getIcon(signal) {
   });
 }
 
-// Função para criar o ícone do Cluster (Torre com número)
-const customClusterIcon = function (cluster) {
-  const count = cluster.getChildCount();
-  return L.divIcon({
-    html: `
-      <div style="position: relative; width: 40px; height: 40px;">
-        <img src="tower.png" style="width: 40px; height: 40px;">
-        <span class="cluster-count-badge">${count}</span>
-      </div>`,
-    className: 'custom-cluster-tower',
-    iconSize: L.point(40, 40),
-    iconAnchor: [20, 40]
-  });
-};
-
-// Grupos de Sinais (Sempre visíveis)
+// Grupos para Sinais (Sempre visíveis individualmente)
 let layerVivoSinal = L.layerGroup().addTo(map);
 let layerTimSinal  = L.layerGroup().addTo(map);
 
-// Grupos de Torres (Clusterizados com ícone customizado)
+// Grupos para Torres (Clusterizados no Zoom Out)
 let clusterVivoTorre = L.markerClusterGroup({ 
     maxClusterRadius: 50,
-    showCoverageOnHover: false,
-    iconCreateFunction: customClusterIcon 
+    showCoverageOnHover: false 
 }).addTo(map);
 
 let clusterTimTorre  = L.markerClusterGroup({ 
     maxClusterRadius: 50,
-    showCoverageOnHover: false,
-    iconCreateFunction: customClusterIcon 
+    showCoverageOnHover: false 
 }).addTo(map);
 
-// Camadas
+// Controle de Camadas
 const overlays = {
   "VIVO (Sinais)": layerVivoSinal,
   "VIVO (Torres)": clusterVivoTorre,
@@ -124,9 +112,11 @@ const overlays = {
 };
 L.control.layers(null, overlays).addTo(map);
 
+// Variáveis de Controle
 let filtroAtivo = null;
+let stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };
 
-// CSV Loader
+// Carregador de CSV
 async function loadCSV(url, clusterTorre, layerSinal, rede) {
   try {
     const res = await fetch(url + '?' + Date.now());
@@ -137,6 +127,7 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
       let line = lines[i].trim();
       if (!line) continue;
 
+      // Regex para lidar com aspas nas coordenadas
       const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
       if (!parts || parts.length < 4) continue;
 
@@ -150,37 +141,71 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
 
       if (isNaN(lat) || isNaN(lng)) continue;
 
+      if (stats.hasOwnProperty(sinal)) stats[sinal]++;
+
       const marker = L.marker([lat, lng], {
         icon: getIcon(sinal)
-      }).bindPopup(`<b>${rede}</b><br>${sinal === "TORRE" ? "Torre" : "Sinal: " + sinal}`);
+      }).bindPopup(`<b>${rede}</b><br>${sinal === "TORRE" ? "Torre de Transmissão" : "Nível de Sinal: " + sinal}`);
 
+      // Separação de Clusterização
       if (sinal === "TORRE") {
         clusterTorre.addLayer(marker);
       } else {
         layerSinal.addLayer(marker);
       }
     }
-  } catch (e) { console.error("Erro no CSV:", e); }
+  } catch (err) {
+    console.error("Erro ao carregar CSV:", url, err);
+  }
 }
 
+// Função de Atualização Global
 function atualizar() {
   clusterVivoTorre.clearLayers();
   layerVivoSinal.clearLayers();
   clusterTimTorre.clearLayers();
   layerTimSinal.clearLayers();
 
+  stats = { "0":0, "1":0, "2":0, "3":0, "TORRE":0 };
+
   loadCSV('vivo.csv', clusterVivoTorre, layerVivoSinal, 'VIVO');
   loadCSV('tim.csv',  clusterTimTorre,  layerTimSinal,  'TIM');
+
+  setTimeout(updateChart, 800);
 }
 
-// Legenda
+// Configuração do Gráfico (Chart.js)
+let chart = new Chart(document.getElementById('chart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Sem sinal', 'Baixo', 'Médio', 'Forte', 'Torre'],
+    datasets: [{
+      data: [0, 0, 0, 0, 0],
+      backgroundColor: ['#222', '#e74c3c', '#e67e22', '#2ecc71', '#3498db']
+    }]
+  },
+  options: {
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12 } }
+    }
+  }
+});
+
+function updateChart() {
+  chart.data.datasets[0].data = [
+    stats["0"], stats["1"], stats["2"], stats["3"], stats["TORRE"]
+  ];
+  chart.update();
+}
+
+// Legenda Interativa
 const legend = L.control({ position: 'bottomright' });
 legend.onAdd = function() {
   const div = L.DomUtil.create('div', 'legend');
   div.innerHTML = `
-    <b>Filtros</b><br>
+    <b>Legenda e Filtros</b><br>
     <div onclick="filtrar(null)">    <img src="marker-green.png"> Todos</div>
-    <div onclick="filtrar('TORRE')"> <img src="tower.png"> Torres</div>
+    <div onclick="filtrar('TORRE')"> <img src="tower.png"> Torre</div>
     <div onclick="filtrar('0')">     <img src="marker-black.png"> Sem sinal</div>
     <div onclick="filtrar('1')">     <img src="marker-red.png"> Baixo</div>
     <div onclick="filtrar('2')">     <img src="marker-orange.png"> Médio</div>
@@ -190,11 +215,19 @@ legend.onAdd = function() {
 };
 legend.addTo(map);
 
-window.filtrar = function(v) { filtroAtivo = v; atualizar(); };
+// Função de Filtro
+window.filtrar = function(v) {
+  filtroAtivo = v;
+  atualizar();
+};
 
+// Loop de atualização (30 segundos)
 setInterval(atualizar, 30000);
+
+// Carga Inicial
 atualizar();
 
 </script>
+
 </body>
 </html>
