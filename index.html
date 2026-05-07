@@ -14,7 +14,6 @@
 
   <style>
     #map { height: 100vh; }
-
     .legend {
       background: white;
       padding: 10px;
@@ -22,16 +21,8 @@
       box-shadow: 0 0 10px rgba(0,0,0,0.2);
       font-size: 14px;
     }
-
-    .legend div {
-      cursor: pointer;
-      margin: 4px 0;
-    }
-
-    .legend img {
-      width: 18px;
-      margin-right: 6px;
-    }
+    .legend div { cursor: pointer; margin: 4px 0; }
+    .legend img { width: 18px; margin-right: 6px; }
   </style>
 </head>
 <body>
@@ -39,21 +30,17 @@
 <div id="map"></div>
 
 <script>
-
 const map = L.map('map').setView([-28.82, -49.27], 13);
-
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-// ÍCONES
 function getIcon(signal) {
   const mapIcons = {
-    "0":     "marker-black.png",
-    "1":     "marker-red.png",
-    "2":     "marker-orange.png",
-    "3":     "marker-green.png",
+    "0": "marker-black.png",
+    "1": "marker-red.png",
+    "2": "marker-orange.png",
+    "3": "marker-green.png",
     "TORRE": "tower.png"
   };
-
   return L.icon({
     iconUrl: mapIcons[signal] || "marker-green.png",
     iconSize: [32, 32],
@@ -61,11 +48,10 @@ function getIcon(signal) {
   });
 }
 
-// CLUSTERS
+// Grupos de camadas
 let clusterVivo = L.layerGroup().addTo(map);
 let clusterTim  = L.layerGroup().addTo(map);
 
-// CAMADAS
 const overlays = {
   "VIVO": clusterVivo,
   "TIM":  clusterTim
@@ -73,84 +59,82 @@ const overlays = {
 
 L.control.layers(null, overlays).addTo(map);
 
-// FILTRO SINAL
 let filtroAtivo = null;
 
-// CSV LOADER
 async function loadCSV(url, cluster, rede) {
+  try {
+    const res = await fetch(url + '?' + Date.now());
+    const text = await res.text();
+    const lines = text.split(/\r?\n/);
 
-  const res  = await fetch(url + '?' + Date.now());
-  const text = await res.text();
-  const lines = text.split(/\r?\n/);
+    for (let i = 1; i < lines.length; i++) {
+      let line = lines[i].trim();
+      if (!line) continue;
 
-  for (let i = 1; i < lines.length; i++) {
+      const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+      if (!parts || parts.length < 4) continue;
 
-    let line = lines[i].trim();
-    if (!line) continue;
+      const coords = parts[0].replace(/"/g, '').split(",");
+      const sinal = parts[1].trim();
 
-    const parts = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
-    if (!parts || parts.length < 4) continue;
+      // Aplica o filtro de sinal (0, 1, 2, 3 ou TORRE)
+      if (filtroAtivo && sinal !== filtroAtivo) continue;
 
-    const coords = parts[0].replace(/"/g, '').split(",");
-    const sinal  = parts[1].trim();
+      const lat = parseFloat(coords[0]);
+      const lng = parseFloat(coords[1]);
 
-    if (filtroAtivo && sinal !== filtroAtivo) continue;
-
-    const lat = parseFloat(coords[0]);
-    const lng = parseFloat(coords[1]);
-
-    if (isNaN(lat) || isNaN(lng)) continue;
-
-    const marker = L.marker([lat, lng], {
-      icon: getIcon(sinal)
-    }).bindPopup(`${rede} - ${sinal === "TORRE" ? "Torre" : "Sinal " + sinal}`);
-
-    cluster.addLayer(marker);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        const marker = L.marker([lat, lng], {
+          icon: getIcon(sinal)
+        }).bindPopup(`${rede} - ${sinal === "TORRE" ? "Torre" : "Sinal " + sinal}`);
+        
+        cluster.addLayer(marker);
+      }
+    }
+  } catch (e) {
+    console.error("Erro ao carregar CSV:", url, e);
   }
 }
 
-// ATUALIZAR
-function atualizar() {
+// Função principal de atualização
+async function atualizar() {
+  // Limpa apenas o conteúdo interno, mas mantém as camadas no mapa se estiverem marcadas no controle
   clusterVivo.clearLayers();
   clusterTim.clearLayers();
 
-  loadCSV('vivo.csv', clusterVivo, 'VIVO');
-  loadCSV('tim.csv',  clusterTim,  'TIM');
+  // Recarrega os dados para ambos
+  await loadCSV('vivo.csv', clusterVivo, 'VIVO');
+  await loadCSV('tim.csv',  clusterTim,  'TIM');
 }
 
-// LEGENDA (SINAL)
+// Legenda Interativa
 const legend = L.control({ position: 'bottomright' });
-
 legend.onAdd = function() {
   const div = L.DomUtil.create('div', 'legend');
-
   div.innerHTML = `
-    <b>Sinal</b><br>
-    <div onclick="filtrar('TORRE')">        <img src="tower.png">        Torre</div>
-    <div onclick="filtrar(null)">           <img src="marker-green.png"> Todos</div>
-    <div onclick="filtrar('0')">            <img src="marker-black.png"> Sem sinal</div>
-    <div onclick="filtrar('1')">            <img src="marker-red.png">   Baixo</div>
-    <div onclick="filtrar('2')">            <img src="marker-orange.png"> Médio</div>
-    <div onclick="filtrar('3')">            <img src="marker-green.png"> Forte</div>
+    <b>Filtro de Intensidade</b><br>
+    <div onclick="filtrar('TORRE')"> <img src="tower.png"> Torre</div>
+    <div onclick="filtrar(null)">    <img src="marker-green.png"> <b>Ver Todos</b></div>
+    <div onclick="filtrar('0')">     <img src="marker-black.png"> Sem sinal</div>
+    <div onclick="filtrar('1')">     <img src="marker-red.png"> Baixo</div>
+    <div onclick="filtrar('2')">     <img src="marker-orange.png"> Médio</div>
+    <div onclick="filtrar('3')">     <img src="marker-green.png"> Forte</div>
   `;
-
   return div;
 };
-
 legend.addTo(map);
 
-// FILTRO
 window.filtrar = function(v) {
   filtroAtivo = v;
-  atualizar();
+  atualizar(); // Re-processa os CSVs aplicando o novo filtro de sinal
 };
 
-// LOOP DE ATUALIZAÇÃO (30s)
+// Atualização automática a cada 30 segundos
 setInterval(atualizar, 30000);
 
+// Carga inicial
 atualizar();
 
 </script>
-
 </body>
 </html>
