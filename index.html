@@ -100,11 +100,10 @@ let layerTimSinal  = L.layerGroup().addTo(map);
 let clusterVivoTorre = L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false, iconCreateFunction: customClusterIcon }).addTo(map);
 let clusterTimTorre  = L.markerClusterGroup({ maxClusterRadius: 50, showCoverageOnHover: false, iconCreateFunction: customClusterIcon }).addTo(map);
 
+// MENU LATERAL: Removido as opções de Torre conforme solicitado
 const overlays = {
   "VIVO (Sinais)": layerVivoSinal,
-  "VIVO (Torres)": clusterVivoTorre,
-  "TIM (Sinais)": layerTimSinal,
-  "TIM (Torres)": clusterTimTorre
+  "TIM (Sinais)": layerTimSinal
 };
 L.control.layers(null, overlays).addTo(map);
 
@@ -116,7 +115,6 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
     const text = await res.text();
     const lines = text.split(/\r?\n/);
 
-    // Limpa apenas os dados específicos desta operadora/arquivo
     clusterTorre.clearLayers();
     layerSinal.clearLayers();
 
@@ -130,7 +128,6 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
       const coordsStr = parts[0].replace(/"/g, '').split(",");
       const sinal = parts[1].trim();
 
-      // Aplica o filtro de legenda (Sinal)
       if (filtroAtivo && sinal !== filtroAtivo) continue;
 
       const lat = parseFloat(coordsStr[0]);
@@ -150,7 +147,6 @@ async function loadCSV(url, clusterTorre, layerSinal, rede) {
   } catch (e) { console.error("Erro no CSV:", e); }
 }
 
-// Atualiza cada operadora independentemente
 function atualizar() {
   loadCSV('vivo.csv', clusterVivoTorre, layerVivoSinal, 'VIVO');
   loadCSV('tim.csv',  clusterTimTorre,  layerTimSinal,  'TIM');
