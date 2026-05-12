@@ -33,11 +33,64 @@
       width: 18px;
       margin-right: 6px;
     }
+
+    .search-box {
+      position: absolute;
+      top: 10px;
+      left: 50px;
+      z-index: 1000;
+      display: flex;
+      gap: 6px;
+    }
+
+    .search-box input {
+      width: 280px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      font-size: 14px;
+      outline: none;
+    }
+
+    .search-box button {
+      padding: 8px 14px;
+      background: #1a3a5c;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+    .search-box button:hover {
+      background: #25527f;
+    }
+
+    .search-error {
+      position: absolute;
+      top: 50px;
+      left: 50px;
+      z-index: 1000;
+      background: #e74c3c;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
   </style>
 </head>
 <body>
 
 <div id="map"></div>
+
+<div class="search-box">
+  <input type="text" id="searchInput" placeholder="Pesquisar endereço ou local..." />
+  <button onclick="pesquisar()">Buscar</button>
+</div>
+<div class="search-error" id="searchError">Endereço não encontrado.</div>
 
 <script>
 
@@ -122,6 +175,54 @@ L.control.layers(null, {
 }).addTo(map);
 
 let filtroAtivo = null;
+let marcadorPesquisa = null;
+
+// PESQUISA DE ENDEREÇO
+async function pesquisar() {
+  const query = document.getElementById('searchInput').value.trim();
+  const errorDiv = document.getElementById('searchError');
+
+  if (!query) return;
+
+  errorDiv.style.display = 'none';
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+    const res  = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+    const data = await res.json();
+
+    if (!data || data.length === 0) {
+      errorDiv.style.display = 'block';
+      setTimeout(() => errorDiv.style.display = 'none', 3000);
+      return;
+    }
+
+    const lat = parseFloat(data[0].lat);
+    const lng = parseFloat(data[0].lon);
+
+    if (marcadorPesquisa) map.removeLayer(marcadorPesquisa);
+
+    marcadorPesquisa = L.marker([lat, lng], {
+      icon: L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+        shadowUrl: 'https://unpkg.com/leaflet/dist/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41]
+      })
+    }).addTo(map).bindPopup(`<b>${data[0].display_name}</b>`).openPopup();
+
+    map.setView([lat, lng], 16);
+
+  } catch (e) {
+    errorDiv.style.display = 'block';
+    setTimeout(() => errorDiv.style.display = 'none', 3000);
+  }
+}
+
+// Pesquisar ao pressionar Enter
+document.getElementById('searchInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') pesquisar();
+});
 
 async function loadCSV(url, layerSinal, layerTorres, layerAlcance, rede) {
   const res   = await fetch(url + '?' + Date.now());
